@@ -85,17 +85,14 @@ app.get("/movies/create", (req, res) => {
             message: "The year provided does not exist",
         });
     } else if (
-        !req.query.rating ||
-        req.query.rating > 10 ||
-        req.query.rating < 0
+        req.query.rating &&
+        (req.query.rating > 10 || req.query.rating < 0)
     ) {
-        let newMovie = {
-            title: req.query.title,
-            year: req.query.year,
-            rating: 4,
-        };
-        movies.push(newMovie);
-        res.send({ status: 200, data: movies });
+        res.send({
+            status: 403,
+            error: true,
+            message: "The rating provided doesn't exist",
+        });
     } else {
         let newMovie = {
             title: req.query.title,
