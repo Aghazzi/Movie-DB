@@ -143,8 +143,67 @@ app.get(["/movies/read/id/:id", "/movies/read/id/"], (req, res) => {
     }
 });
 
-app.get("/movies/update", (req, res) => {
-    res.send();
+app.get(["/movies/update", "/movies/update/:id"], (req, res) => {
+    if (req.params.id) {
+        if (Number(req.params.id) >= 0 && req.params.id < movies.length) {
+            if (!req.query.title && !req.query.year && !req.query.rating) {
+                res.send({
+                    status: 404,
+                    error: true,
+                    message: `Enter the movie you want to update`,
+                });
+            } else if (
+                req.query.year &&
+                (req.query.year > new Date().getFullYear() ||
+                    req.query.year < 1895 ||
+                    req.query.year.length != 4 ||
+                    isNaN(req.query.year))
+            ) {
+                res.send({
+                    status: 403,
+                    error: true,
+                    message: "The year entered is not valid",
+                });
+            } else if (
+                req.query.rating &&
+                (isNaN(req.query.rating) ||
+                    req.query.rating > 10 ||
+                    req.query.rating < 0)
+            ) {
+                res.send({
+                    status: 403,
+                    error: true,
+                    message: "The rating entered is not valid",
+                });
+            } else {
+                let editedMovie = {
+                    title: `${req.query.title || movies[req.params.id].title}`,
+                    year: `${req.query.year || movies[req.params.id].year}`,
+                    rating: `${
+                        req.query.rating || movies[req.params.id].rating
+                    }`,
+                };
+                movies.splice(req.params.id, 1, editedMovie);
+
+                res.send({
+                    status: 200,
+                    data: movies[req.params.id],
+                });
+            }
+        } else {
+            res.send({
+                status: 404,
+                error: true,
+                message: `The movie ${req.params.id} does not exist`,
+            });
+        }
+    } else {
+        res.send({
+            status: 404,
+            error: true,
+            message: `Enter the id of the movie you'd like to update`,
+        });
+    }
 });
 
 app.get(["/movies/delete", "/movies/delete/:id"], (req, res) => {
