@@ -39,7 +39,7 @@ app.get("/search", (req, res) => {
     }
 });
 
-app.get("/movies/create", (req, res) => {
+app.post("/movies/create", (req, res) => {
     if (!req.query.title) {
         if (!req.query.year) {
             res.send({
@@ -143,7 +143,7 @@ app.get(["/movies/read/id/:id", "/movies/read/id/"], (req, res) => {
     }
 });
 
-app.get(["/movies/update", "/movies/update/:id"], (req, res) => {
+app.patch(["/movies/update", "/movies/update/:id"], (req, res) => {
     if (req.params.id) {
         if (Number(req.params.id) >= 0 && req.params.id < movies.length) {
             if (!req.query.title && !req.query.year && !req.query.rating) {
@@ -206,7 +206,7 @@ app.get(["/movies/update", "/movies/update/:id"], (req, res) => {
     }
 });
 
-app.get(["/movies/delete", "/movies/delete/:id"], (req, res) => {
+app.delete(["/movies/delete", "/movies/delete/:id"], (req, res) => {
     if (req.params.id) {
         if (Number(req.params.id) >= 0 && req.params.id < movies.length) {
             movies.splice(req.params.id, 1);
