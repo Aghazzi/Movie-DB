@@ -1,6 +1,8 @@
 const express = require("express");
-
+const bodyParser = require("body-parser");
 const mongoose = require("mongoose");
+const cookieParser = require("cookie-parser");
+TOKEN_KEY = "killtareq";
 const movieSchema = new mongoose.Schema({
     title: String,
     year: Number,
@@ -11,16 +13,19 @@ const jwt = require("jsonwebtoken");
 
 const users = [
     {
-        username: "Admin",
-        password: "123456batata",
+        username: "faten",
+        password:
+            "$2a$10$oTRh5oBwSyrnWs9OD0mPoujgqrMbyAeS5thIxYe6xR1LpM00YP6aW",
     },
     {
-        username: "Ahmad",
-        password: "123456ok",
+        username: "tareq",
+        password:
+            "$2a$10$RjXp.S0T3d0j51hklOo5p.eUJSVYac4pAjPTU91Ypk91M27oQyvWi",
     },
     {
-        username: "Batata",
-        password: "isbatata",
+        username: "ahmad",
+        password:
+            "isba$2a$10$DQ9XlKLoAPGMV1GPSo.uj.hg9WduAQUU893UIR8UtlLJBWYavzXHGtata",
     },
 ];
 
@@ -33,27 +38,30 @@ mongoose.connect(URI, { useNewUrlParser: true }, (err) => {
     if (err) throw err;
     console.log("You've been connected successfully");
 });
-
-const IsAuth = (username, password) => {
-    let acceptPass = false;
-    let acceptUsername = false;
-    if (!username || !password) return -2;
-    for (let i = 0; i < users.length - 1; i++) {
-        if (username === users[i].username) {
-            acceptUsername = true;
-            if (password === users[i].password) {
-                acceptPass = true;
-            }
-            break;
-        }
+const verifyToken = (req, res, next) => {
+    let token;
+    if (!token) {
+        token = req.cookies["access-token"];
     }
-    if (acceptPass && acceptUsername) return 0;
-    if (acceptUsername) return 1;
-    return -1;
-};
 
+    if (!token) {
+        return res.status(403).send("A token is required for authentication");
+    }
+
+    try {
+        const decoded = jwt.verify(token, TOKEN_KEY);
+        req.user = decoded;
+    } catch (err) {
+        return res.status(401).send("Invalid Token");
+    }
+
+    return next();
+};
 const app = express();
 const port = 3000;
+
+app.use(express.json());
+app.use(cookieParser());
 
 app.get("/test", (req, res) => {
     res.send({ status: 200, message: "ok" });
@@ -86,7 +94,7 @@ app.get("/search", (req, res) => {
     }
 });
 
-app.post("/movies/create", async (req, res) => {
+app.post("/movies/create", verifyToken, async (req, res) => {
     if (!req.query.title || !req.query.year) {
         res.send({
             status: 403,
@@ -182,7 +190,7 @@ app.get("/movies/read/id/:id?", async (req, res) => {
     }
 });
 
-app.patch("/movies/update/:id?", async (req, res) => {
+app.patch("/movies/update/:id?", verifyToken, async (req, res) => {
     if (req.params.id) {
         const filter = { _id: req.params.id };
         const { title, year, rating } = req.query;
@@ -218,35 +226,39 @@ app.patch("/movies/update/:id?", async (req, res) => {
     }
 });
 
-app.delete(["/movies/delete/:id", "/movies/delete"], (req, res) => {
-    if (req.params.id) {
-        Movie.findOneAndDelete({ _id: req.params.id })
-            .then((deletedMovie) => {
-                if (!deletedMovie)
-                    return res.send({
-                        status: 404,
-                        error: true,
-                        message: `The movie ${req.params.id} does not exist`,
-                    });
-                Movie.find()
-                    .then((movies) => {
-                        res.send({ status: 200, data: movies });
-                    })
-                    .catch((err) => {
-                        res.send(err.message);
-                    });
-            })
-            .catch((err) => {
-                res.send(err.message);
+app.delete(
+    ["/movies/delete/:id", "/movies/delete"],
+    verifyToken,
+    (req, res) => {
+        if (req.params.id) {
+            Movie.findOneAndDelete({ _id: req.params.id })
+                .then((deletedMovie) => {
+                    if (!deletedMovie)
+                        return res.send({
+                            status: 404,
+                            error: true,
+                            message: `The movie ${req.params.id} does not exist`,
+                        });
+                    Movie.find()
+                        .then((movies) => {
+                            res.send({ status: 200, data: movies });
+                        })
+                        .catch((err) => {
+                            res.send(err.message);
+                        });
+                })
+                .catch((err) => {
+                    res.send(err.message);
+                });
+        } else {
+            res.send({
+                status: 404,
+                error: true,
+                message: `Provide the movie ID you'd like to delete`,
             });
-    } else {
-        res.send({
-            status: 404,
-            error: true,
-            message: `Provide the movie ID you'd like to delete`,
-        });
+        }
     }
-});
+);
 
 app.get("/users/read", (req, res) => {
     res.status(200).send({
@@ -301,7 +313,7 @@ app.post("/users/create", async (req, res) => {
         res.status(200).send({
             status: 200,
             data: users.map((user) => {
-                return `${user.username} : ${user.password}`;
+                return user;
             }),
         });
     }
@@ -407,6 +419,28 @@ app.put(
         }
     }
 );
+
+app.post("/users/login", async (req, res) => {
+    const { username, password } = req.body;
+    if (username && password) {
+        let user = users.find((u) => u.username == username);
+        if (user && (await bcrypt.compare(password, user.password))) {
+            const token = jwt.sign({ user_id: user.username }, TOKEN_KEY, {
+                expiresIn: "2h",
+            });
+            user.token = token;
+            res.cookie("access-token", token, {
+                maxAge: 2 * 60 * 60 * 1000,
+                httpOnly: true,
+            });
+            res.send({ status: 200, message: "logged in", data: user });
+        } else {
+            res.send("please check your info");
+        }
+    } else {
+        res.send("please provide both username and password");
+    }
+});
 
 app.get("/", (req, res) => {
     res.send("ok");
