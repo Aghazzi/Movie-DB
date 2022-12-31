@@ -6,7 +6,25 @@ const movieSchema = new mongoose.Schema({
     year: Number,
     rating: Number,
 });
+bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
+const users = [
+    {
+        username: "Admin",
+        password: "123456batata",
+    },
+    {
+        username: "Ahmad",
+        password: "123456ok",
+    },
+    {
+        username: "Batata",
+        password: "isbatata",
+    },
+];
+
+// Link in READMELINK
 const URI =
     "mongodb+srv://user:123456ag@cluster0.muots9r.mongodb.net/user?retryWrites=true&w=majority";
 
@@ -15,6 +33,24 @@ mongoose.connect(URI, { useNewUrlParser: true }, (err) => {
     if (err) throw err;
     console.log("You've been connected successfully");
 });
+
+const IsAuth = (username, password) => {
+    let acceptPass = false;
+    let acceptUsername = false;
+    if (!username || !password) return -2;
+    for (let i = 0; i < users.length - 1; i++) {
+        if (username === users[i].username) {
+            acceptUsername = true;
+            if (password === users[i].password) {
+                acceptPass = true;
+            }
+            break;
+        }
+    }
+    if (acceptPass && acceptUsername) return 0;
+    if (acceptUsername) return 1;
+    return -1;
+};
 
 const app = express();
 const port = 3000;
@@ -211,6 +247,166 @@ app.delete(["/movies/delete/:id", "/movies/delete"], (req, res) => {
         });
     }
 });
+
+app.get("/users/read", (req, res) => {
+    res.status(200).send({
+        status: 200,
+        data: users.map((user) => {
+            return user.username;
+        }),
+    });
+});
+
+app.post("/users/create", async (req, res) => {
+    if (!req.query.username) {
+        if (!req.query.password) {
+            res.status(403).send({
+                status: 403,
+                error: true,
+                message:
+                    "You can't create a new user without entering a username and a password",
+            });
+        } else {
+            res.status(403).send({
+                status: 403,
+                error: true,
+                message:
+                    "You can't create a new user without entering a username",
+            });
+        }
+    } else if (!req.query.password) {
+        res.status(403).send({
+            status: 403,
+            error: true,
+            message: "You can't create a new user without entering a password",
+        });
+    } else if (
+        users.map((user) => user.username).includes(req.query.username)
+    ) {
+        res.status(403).send({
+            status: 403,
+            error: true,
+            message: "The username already exists",
+        });
+    } else {
+        let password = req.query.password;
+        let encryptedPassword = await bcrypt.hash(password, 10);
+        let user = {
+            username: req.query.username,
+            password: encryptedPassword,
+        };
+
+        users.push(user);
+
+        res.status(200).send({
+            status: 200,
+            data: users.map((user) => {
+                return `${user.username} : ${user.password}`;
+            }),
+        });
+    }
+});
+
+app.delete(
+    ["/users/delete/:username/:password", "/users/delete"],
+    (req, res) => {
+        if (req.params.username && req.params.password) {
+            let nbOfUsers = users.length;
+            users.map((user, index) => {
+                if (user.username === req.params.username) {
+                    if (user.password === req.params.password) {
+                        users.splice(index, 1);
+                        res.status(200).send({
+                            status: 200,
+                            data: users.map((user) => {
+                                return user.username;
+                            }),
+                        });
+                    } else {
+                        res.status(404).send({
+                            status: 404,
+                            error: true,
+                            message: `username and password do not match`,
+                        });
+                        nbOfUsers--;
+                    }
+                }
+            });
+            if (nbOfUsers === users.length) {
+                res.status(404).send({
+                    status: 404,
+                    error: true,
+                    message: `The user doesn't exist`,
+                });
+            }
+        } else {
+            res.status(404).send({
+                status: 404,
+                error: true,
+                message: `Enter the username and the password of the user you want to delete`,
+            });
+        }
+    }
+);
+
+app.put(
+    [
+        "/users/update",
+        "/users/update/:username",
+        "/users/update/:password",
+        "/users/update/:username/:password",
+    ],
+    (req, res) => {
+        if (req.params.username && req.params.password) {
+            if (!req.query.newusername && !req.query.newpassword) {
+                res.status(404).send({
+                    status: 404,
+                    error: true,
+                    message: `Enter the new data you want to update`,
+                });
+            } else {
+                let newUser = {
+                    username: `${req.query.newusername || req.params.username}`,
+                    password: `${req.query.newpassword || req.params.password}`,
+                };
+
+                let changed = false;
+
+                users.map((user, index) => {
+                    if (user.username === req.params.username) {
+                        if (user.password === req.params.password) {
+                            users.splice(index, 1, newUser);
+                            res.status(200).send({
+                                status: 200,
+                                data: newUser,
+                            });
+                            changed = true;
+                        } else {
+                            res.status(404).send({
+                                status: 404,
+                                error: true,
+                                message: `username and password do not match`,
+                            });
+                        }
+                    }
+                });
+                if (!changed) {
+                    res.status(404).send({
+                        status: 404,
+                        error: true,
+                        message: `can not find the username`,
+                    });
+                }
+            }
+        } else {
+            res.status(404).send({
+                status: 404,
+                error: true,
+                message: `Enter the username and password of the user you want to update`,
+            });
+        }
+    }
+);
 
 app.get("/", (req, res) => {
     res.send("ok");
